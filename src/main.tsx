@@ -18,7 +18,7 @@ const router = createBrowserRouter(
       Component: OrderConfirmPage,
     },
   ],
-  { basename: '/react-shopping-cart/dist' },
+  { basename: import.meta.env.BASE_URL },
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
