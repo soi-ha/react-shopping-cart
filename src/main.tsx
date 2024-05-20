@@ -18,7 +18,7 @@ const router = createBrowserRouter(
       Component: OrderConfirmPage,
     },
   ],
-  { basename: import.meta.env.BASE_URL },
+  { basename: `${import.meta.env.BASE_URL}/dist` },
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
