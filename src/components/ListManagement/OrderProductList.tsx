@@ -1,14 +1,15 @@
-import { useRecoilValue } from 'recoil';
+import { useRecoilState, useRecoilValue } from 'recoil';
 import {
   calculateOrderPrice,
   checkedCartItems,
   fetchCouponList,
+  totalPaymentPrice,
 } from '../../recoil/selectors';
 
 import { Modal } from 'soha-components';
 
 import CheckBox from '../CheckBox/CheckBox';
-import OrderProductItem from '../ProductItem/OrderProductItem';
+import OrderProductItem from '../ItemManagement/OrderProductItem';
 import ProductTotalPriceList from '../ProductTotalPriceList/ProductTotalPriceList';
 
 import * as P from './ProductList.style';
@@ -17,25 +18,25 @@ import { useState } from 'react';
 import Coupon from '../Coupon/Coupon';
 
 import useCoupon from '../../hooks/useCoupon';
-import { finalTotalPriceListState } from '../../recoil/atoms';
+import { discountPrice, isIslandState } from '../../recoil/atoms';
 
 export default function OrderProductList() {
   const order = useRecoilValue(checkedCartItems);
-  const { totalOrderPrice } = useRecoilValue(calculateOrderPrice);
+  const { totalOrderPrice, deliveryFee } = useRecoilValue(calculateOrderPrice);
   const couponList = useRecoilValue(fetchCouponList);
-  const finalTotalPriceList = useRecoilValue(finalTotalPriceListState);
+  const finalDiscountPrice = useRecoilValue(discountPrice);
+  const finalTotalPaymentPrice = useRecoilValue(totalPaymentPrice);
 
-  const [isIsland, setIsland] = useState(false);
+  const [isIsland, setIsland] = useRecoilState(isIslandState);
+
   const [openModal, setOpenModal] = useState(false);
 
-  useCoupon({
-    isIsland: isIsland,
-  });
+  useCoupon();
 
   const priceList: PriceList = {
     0: ['주문 금액', totalOrderPrice],
-    1: ['쿠폰 할인 금액', finalTotalPriceList.discountPrice],
-    2: ['배송비', finalTotalPriceList.deliveryFee],
+    1: ['쿠폰 할인 금액', finalDiscountPrice],
+    2: ['배송비', deliveryFee],
   };
 
   return (
@@ -62,7 +63,7 @@ export default function OrderProductList() {
       </OP.DeliveryInfo>
       <ProductTotalPriceList
         priceList={priceList}
-        totalPrice={finalTotalPriceList.totalPaymentPrice}
+        totalPrice={finalTotalPaymentPrice}
       />
       {openModal && (
         <Modal
@@ -70,7 +71,7 @@ export default function OrderProductList() {
           title="쿠폰을 선택해 주세요"
           closeButton="img"
           closeModalClick={() => setOpenModal(false)}
-          buttonText={`총 ${finalTotalPriceList.discountPrice.toLocaleString('ko-kr')}원 할인 쿠폰 사용하기`}
+          buttonText={`총 ${finalDiscountPrice.toLocaleString('ko-kr')}원 할인 쿠폰 사용하기`}
           buttonClick={() => setOpenModal(false)}
         >
           <Coupon coupons={couponList} />

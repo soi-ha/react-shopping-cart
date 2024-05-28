@@ -7,15 +7,14 @@ import {
 import findCouponValidator from '../domain/findCouponValidator';
 import findApplicableCoupons from '../domain/findApplicableCoupons';
 import discountCalculator from '../domain/discountCalculator';
-import { RULE } from '../constants/rule';
-import { finalTotalPriceListState } from '../recoil/atoms';
 import { useEffect } from 'react';
+import {
+  applicableCouponList,
+  applyCouponList,
+  discountPrice,
+} from '../recoil/atoms';
 
-const useCoupon = ({ isIsland }: { isIsland: boolean }) => {
-  const [finalTotalPriceList, setFinalTotalPriceList] = useRecoilState(
-    finalTotalPriceListState,
-  );
-
+const useCoupon = () => {
   const couponList = useRecoilValue(fetchCouponList);
   const orderList = useRecoilValue(checkedCartItems);
   const { totalOrderPrice, deliveryFee, totalPrice } =
@@ -23,22 +22,34 @@ const useCoupon = ({ isIsland }: { isIsland: boolean }) => {
 
   const { validCoupon } = findCouponValidator(couponList);
 
-  const applicableCouponList = findApplicableCoupons({
-    validCouponList: validCoupon(),
-    totalPrice: totalOrderPrice,
+  const [applicableCoupons, setApplicableCoupons] =
+    useRecoilState(applicableCouponList);
+  const [applyCoupons, setApplyCoupons] = useRecoilState(applyCouponList);
+  const [finalDiscountPrice, setFinalDiscountPrice] =
+    useRecoilState(discountPrice);
+
+  useEffect(() => {
+    const validCoupons = validCoupon();
+    const newApplicableCoupons = findApplicableCoupons({
+      validCouponList: validCoupons,
+      totalOrderPrice,
+      orderList,
+    }).applicableCoupons();
+
+    // 상태가 변경될 때만 업데이트
+    if (
+      JSON.stringify(applicableCoupons) !== JSON.stringify(newApplicableCoupons)
+    ) {
+      setApplicableCoupons(newApplicableCoupons);
+    }
+  }, [
+    couponList,
+    totalOrderPrice,
     orderList,
-  }).applicableCoupons();
-
-  const finalDeliveryFee =
-    deliveryFee === 0
-      ? deliveryFee
-      : isIsland
-        ? deliveryFee + RULE.isLandSurcharge
-        : deliveryFee;
-
-  const finalTotalPrice = isIsland
-    ? totalPrice + RULE.isLandSurcharge
-    : totalPrice;
+    validCoupon,
+    setApplicableCoupons,
+    applicableCoupons,
+  ]);
 
   const findBestCouponCombination = () => {
     let bestCombination: { coupons: Coupon[]; totalDiscount: number } = {
@@ -46,33 +57,30 @@ const useCoupon = ({ isIsland }: { isIsland: boolean }) => {
       totalDiscount: 0,
     };
 
-    for (let i = 0; i < applicableCouponList.length; i++) {
-      for (let j = i; j < applicableCouponList.length; j++) {
-        const firstCoupon = applicableCouponList[i];
-        const secondCoupon = applicableCouponList[j];
+    for (let i = 0; i < applicableCoupons.length; i++) {
+      for (let j = i; j < applicableCoupons.length; j++) {
+        const firstCoupon = applicableCoupons[i];
+        const secondCoupon = applicableCoupons[j];
 
         const discount1 = discountCalculator({
           coupon: firstCoupon,
-          totalOrderPrice: finalTotalPrice,
+          totalPrice,
           orderList,
-          deliveryFee: finalDeliveryFee,
+          deliveryFee,
         }).calculateDiscountAmount();
 
         const discount2 = discountCalculator({
           coupon: secondCoupon,
-          totalOrderPrice: finalTotalPrice,
+          totalPrice,
           orderList,
-          deliveryFee: finalDeliveryFee,
+          deliveryFee,
         }).calculateDiscountAmount();
 
         const totalDiscount =
           firstCoupon === secondCoupon ? discount1! : discount1! + discount2!;
 
         if (totalDiscount > bestCombination.totalDiscount) {
-          if (
-            firstCoupon === secondCoupon &&
-            applicableCouponList.length === 1
-          ) {
+          if (firstCoupon === secondCoupon && applicableCoupons.length === 1) {
             bestCombination = {
               coupons: [firstCoupon],
               totalDiscount: discount1!,
@@ -94,27 +102,23 @@ const useCoupon = ({ isIsland }: { isIsland: boolean }) => {
 
   useEffect(() => {
     const bestCombination = findBestCouponCombination();
-    const updatedFinalTotalPriceList = {
-      applicableCouponList,
-      totalOrderPrice: finalTotalPrice,
-      discountPrice: bestCombination.totalDiscount,
-      applyCoupons: bestCombination.coupons,
-      deliveryFee: finalDeliveryFee,
-      totalPaymentPrice: finalTotalPrice - bestCombination.totalDiscount,
-    };
 
-    setFinalTotalPriceList(updatedFinalTotalPriceList);
+    // 상태가 변경될 때만 업데이트
+    if (
+      JSON.stringify(applyCoupons) !==
+        JSON.stringify(bestCombination.coupons) ||
+      finalDiscountPrice !== bestCombination.totalDiscount
+    ) {
+      setApplyCoupons(bestCombination.coupons);
+      setFinalDiscountPrice(bestCombination.totalDiscount);
+    }
   }, [
-    isIsland,
-    couponList,
-    orderList,
-    totalOrderPrice,
-    deliveryFee,
+    applicableCoupons,
     totalPrice,
-    finalTotalPriceListState,
+    orderList,
+    deliveryFee,
+    setFinalDiscountPrice,
   ]);
-
-  return { finalTotalPriceList };
 };
 
 export default useCoupon;

@@ -3,9 +3,14 @@ import CheckBox from '../CheckBox/CheckBox';
 import Caution from '../../assets/caution.svg';
 import * as C from './Coupon.style';
 import { useRecoilState, useRecoilValue } from 'recoil';
-import { finalTotalPriceListState } from '../../recoil/atoms';
 import discountCalculator from '../../domain/discountCalculator';
-import { checkedCartItems } from '../../recoil/selectors';
+import { calculateOrderPrice, checkedCartItems } from '../../recoil/selectors';
+import { useEffect } from 'react';
+import {
+  applicableCouponList,
+  applyCouponList,
+  discountPrice,
+} from '../../recoil/atoms';
 
 interface Props {
   coupons: Coupon[];
@@ -13,63 +18,51 @@ interface Props {
 
 export default function Coupon({ coupons }: Props) {
   const orderList = useRecoilValue(checkedCartItems);
-  const [finalTotalPriceList, setFinalTotalPriceList] = useRecoilState(
-    finalTotalPriceListState,
-  );
+  const { totalPrice, deliveryFee } = useRecoilValue(calculateOrderPrice);
+  const applicableCoupons = useRecoilValue(applicableCouponList);
+  const [applyCoupons, setApplyCoupons] = useRecoilState(applyCouponList);
+  const [finalDiscountPrice, setFinalDiscountPrice] =
+    useRecoilState(discountPrice);
 
-  const applicableCouponIds = finalTotalPriceList.applicableCouponList.map(
-    (coupon) => {
-      return coupon.id;
-    },
-  );
+  const applicableCouponIds = applicableCoupons.map((coupon) => {
+    return coupon.id;
+  });
 
-  const applyCouponIds = finalTotalPriceList.applyCoupons.map((coupon) => {
+  const applyCouponIds = applyCoupons.map((coupon) => {
     return coupon.id;
   });
 
   const handleClickCheckBox = (coupon: Coupon) => {
-    if (
-      applyCouponIds.length < 2 ||
-      finalTotalPriceList.applyCoupons.includes(coupon)
-    ) {
-      setFinalTotalPriceList((prevState) => {
-        const isCouponApplied = prevState.applyCoupons.some(
+    if (applyCouponIds.length < 2 || applyCoupons.includes(coupon)) {
+      setApplyCoupons((prev) => {
+        const isCouponApplied = prev.some(
           (appliedCoupon) => appliedCoupon.id === coupon.id,
         );
 
         const updatedApplyCoupons = isCouponApplied
-          ? prevState.applyCoupons.filter(
-              (appliedCoupon) => appliedCoupon.id !== coupon.id,
-            )
-          : [...prevState.applyCoupons, coupon];
+          ? prev.filter((appliedCoupon) => appliedCoupon.id !== coupon.id)
+          : [...prev, coupon];
 
-        const updateDiscountPrice = updatedApplyCoupons.reduce(
-          (acc, coupon) => {
-            const discount = discountCalculator({
-              coupon,
-              totalOrderPrice: finalTotalPriceList.totalOrderPrice,
-              orderList,
-              deliveryFee: finalTotalPriceList.deliveryFee,
-            }).calculateDiscountAmount();
-            console.log(coupon, discount);
-            return acc + discount!;
-          },
-          0,
-        );
-
-        const updateTotalPaymentPrice =
-          prevState.totalOrderPrice - updateDiscountPrice;
-
-        return {
-          ...prevState,
-          applyCoupons: updatedApplyCoupons,
-          discountPrice: updateDiscountPrice,
-          totalPaymentPrice: updateTotalPaymentPrice,
-        };
+        return updatedApplyCoupons;
       });
     }
     return;
   };
+
+  useEffect(() => {
+    setFinalDiscountPrice(() => {
+      const updateDiscountPrice = applyCoupons.reduce((acc, coupon) => {
+        const discount = discountCalculator({
+          coupon,
+          totalPrice,
+          orderList,
+          deliveryFee,
+        }).calculateDiscountAmount();
+        return acc + discount!;
+      }, 0);
+      return updateDiscountPrice;
+    });
+  }, [applyCoupons]);
 
   return (
     <C.CouponStyle>
